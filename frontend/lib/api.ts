@@ -33,3 +33,10 @@ export const authAPI = {
 
   me: () => api.get('/api/auth/me'),
 };
+
+// Check-in endpoints
+export const checkinAPI = {
+  create: (data: any) => api.post('/api/checkins', data),
+  getToday: () => api.get('/api/checkins/today'),
+  getHistory: (limit: number = 30) => api.get(`/api/checkins/history?limit=${limit}`),
+};
