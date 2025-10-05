@@ -24,18 +24,35 @@ def create_profile(
             detail="Profile already exists. Use PUT to update."
         )
 
+    # Convert sessions to dict for JSON storage
+    sessions_dict = None
+    if profile_data.badminton_sessions:
+        sessions_dict = [session.model_dump() for session in profile_data.badminton_sessions]
+
     # Convert injuries to dict for JSON storage
     injuries_dict = None
     if profile_data.current_injuries:
         injuries_dict = [injury.model_dump() for injury in profile_data.current_injuries]
 
+    # Convert running experience
+    running_exp_dict = None
+    if profile_data.running_experience:
+        running_exp_dict = profile_data.running_experience.model_dump()
+
     profile = UserProfile(
         user_id=current_user.id,
-        badminton_days=profile_data.badminton_days,
+        badminton_sessions=sessions_dict,
         primary_sport=profile_data.primary_sport,
         running_goal=profile_data.running_goal,
+        target_race=profile_data.target_race,
         weekly_run_volume_target=profile_data.weekly_run_volume_target,
-        current_injuries=injuries_dict
+        running_experience=running_exp_dict,
+        preferred_run_days=profile_data.preferred_run_days,
+        avoid_run_days=profile_data.avoid_run_days,
+        morning_person=profile_data.morning_person,
+        current_injuries=injuries_dict,
+        sleep_average=profile_data.sleep_average,
+        other_commitments=profile_data.other_commitments
     )
 
     db.add(profile)

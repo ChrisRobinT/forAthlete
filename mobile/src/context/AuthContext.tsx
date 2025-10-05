@@ -1,20 +1,18 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { storage } from '../services/storage';
-import { authAPI, api } from '../services/api';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { api, authAPI } from '../services/api';
+import { saveToken, getToken, removeToken } from '../services/storage';
 
-type AuthContextType = {
+interface AuthContextType {
   token: string | null;
-  user: any | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-};
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,46 +21,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadToken = async () => {
     try {
-      const savedToken = await storage.getToken();
+      const savedToken = await getToken();
       if (savedToken) {
-        setToken(savedToken);
-        api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
-        // TODO: Fetch user data
+        try {
+          await api.get('/api/auth/me', {
+            headers: { Authorization: `Bearer ${savedToken}` }
+          });
+          setToken(savedToken);
+        } catch (error) {
+          await removeToken();
+          setToken(null);
+        }
       }
     } catch (error) {
-      console.error('Failed to load token', error);
+      console.error('Error loading token:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email: string, password: string) => {
-    const response = await authAPI.login(email, password);
-    const newToken = response.data.access_token;
+    try {
+      const response = await authAPI.login(email, password);
+      const { access_token } = response.data;
 
-    await storage.saveToken(newToken);
-    setToken(newToken);
-    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      await saveToken(access_token);
+      setToken(access_token);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
-    await storage.removeToken();
-    setToken(null);
-    setUser(null);
-    delete api.defaults.headers.common['Authorization'];
+    try {
+      await removeToken();
+      setToken(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, login, logout }}>
+    <AuthContext.Provider value={{ token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
