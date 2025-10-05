@@ -25,10 +25,13 @@ def create_checkin(
     ).first()
 
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Check-in already exists for this date"
-        )
+        # Update existing check-in instead of failing
+        for key, value in checkin_data.model_dump().items():
+            if key != 'date':  # Don't update the date
+                setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
 
     # Create new check-in
     checkin = DailyCheckin(

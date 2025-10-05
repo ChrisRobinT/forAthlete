@@ -22,7 +22,7 @@ class DailyCheckinResponse(BaseModel):
     date: date
     hrv: Optional[int]
     rhr: Optional[int]
-    sleep_hours: Optional[int]
+    sleep_hours: Optional[float]
     sleep_quality: Optional[int]
     soreness_level: Optional[int]
     soreness_areas: Optional[List[str]]

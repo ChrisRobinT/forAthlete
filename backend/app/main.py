@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, checkin
+from app.routes import auth, checkin, coach
 
 
 app = FastAPI(title="ForAthlete API", version="1.0.0")
@@ -18,6 +18,9 @@ app.add_middleware(
 app.include_router(auth.router)
 
 app.include_router(checkin.router)
+
+app.include_router(coach.router)
+
 @app.get("/")
 def read_root():
     return {"message": "ForAthlete API is running", "version": "1.0.0"}
