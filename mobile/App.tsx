@@ -5,6 +5,7 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import TrainingPlanScreen from './src/screens/TrainingPlanScreen';
 import { View, ActivityIndicator, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { profileAPI } from './src/services/api';
 
 function AppContent() {
@@ -116,8 +117,10 @@ const styles = StyleSheet.create({
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

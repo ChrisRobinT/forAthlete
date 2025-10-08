@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, checkin, coach, profile
+from app.routes import auth, checkin, coach, profile, workout_completion
 
 
 app = FastAPI(title="ForAthlete API", version="1.0.0")
@@ -23,6 +23,7 @@ app.include_router(coach.router)
 
 app.include_router(profile.router)
 
+app.include_router(workout_completion.router)
 
 @app.get("/")
 def read_root():
