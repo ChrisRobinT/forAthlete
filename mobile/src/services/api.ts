@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { getToken, removeToken } from './storage';
 
+// const API_BASE_URL = 'http://192.168.178.141:8000'; // Groot Bethelhem
 const API_BASE_URL = 'http://192.168.178.141:8000';
-
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {

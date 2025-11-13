@@ -99,6 +99,36 @@ export default function TrainingPlanScreen() {
     }
   };
 
+  const regenerateDay = async (dayName: string, date: string) => {
+    setSelectedWorkout(null); // Close modal
+    setLoading(true);
+
+    try {
+      const response = await api.post('/api/coach/training-plan/regenerate-day', {
+        day: dayName.toLowerCase(),
+        date: date
+      });
+
+      // Update just that day in the plan
+      setPlan(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [dayName.toLowerCase()]: response.data.workout
+        };
+      });
+
+      Alert.alert('Workout Regenerated! 🔄', `Your ${dayName} workout has been updated with a new variation.`);
+    } catch (error: any) {
+      Alert.alert(
+          'Error',
+          error.response?.data?.detail || 'Failed to regenerate workout'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatePlan = async () => {
     setLoading(true);
     try {
@@ -240,7 +270,6 @@ export default function TrainingPlanScreen() {
   const completedCount = Object.values(completions).filter(Boolean).length;
 
   return (
-      <View style={styles.container}>
         <SafeAreaView style={[styles.container, styles.safeArea]} edges={['top']}>
           <View style={styles.header}>
             <View style={{width: 40}}/>
@@ -371,19 +400,30 @@ export default function TrainingPlanScreen() {
                         )}
                       </ScrollView>
 
-                      <TouchableOpacity
-                          style={[styles.modalButton, {backgroundColor: getTypeColor(selectedWorkout.workout.type)}]}
-                          onPress={() => setSelectedWorkout(null)}
-                      >
-                        <Text style={styles.modalButtonText}>Close</Text>
-                      </TouchableOpacity>
+                      <View style={styles.modalButtonsContainer}>
+                        <TouchableOpacity
+                            style={[styles.regenerateButton, {borderColor: getTypeColor(selectedWorkout.workout.type)}]}
+                            onPress={() => regenerateDay(selectedWorkout.day, selectedWorkout.workout.date)}
+                        >
+                          <Text
+                              style={[styles.regenerateButtonText, {color: getTypeColor(selectedWorkout.workout.type)}]}>
+                            🔄 Regenerate Workout
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalButton, {backgroundColor: getTypeColor(selectedWorkout.workout.type)}]}
+                            onPress={() => setSelectedWorkout(null)}
+                        >
+                          <Text style={styles.modalButtonText}>Close</Text>
+                        </TouchableOpacity>
+                      </View>
                     </>
                 )}
               </View>
             </View>
           </Modal>
-          </SafeAreaView>
-      </View>
+        </SafeAreaView>
   );
 }
 
@@ -406,7 +446,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E7E5E1',
@@ -492,17 +533,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   dayCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: 15,
     overflow: 'hidden',
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: '#E7E5E1',
+    borderColor: '#e0e0e0',
+    // iOS
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    // Android
     elevation: 2,
     position: 'relative',
   },
@@ -696,6 +739,21 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonsContainer: {
+    gap: 12,
+    marginTop: 16,
+  },
+  regenerateButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  regenerateButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

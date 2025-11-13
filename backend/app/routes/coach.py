@@ -36,6 +36,8 @@ def get_daily_recommendation_endpoint(
         db: Session = Depends(get_db)
 ):
     today = date.today()
+
+    # Get today's check-in
     checkin = db.query(DailyCheckin).filter(
         DailyCheckin.user_id == current_user.id,
         DailyCheckin.date == today
@@ -57,9 +59,29 @@ def get_daily_recommendation_endpoint(
         'notes': checkin.notes
     }
 
+    # Get today's planned workout from training plan
+    planned_workout = None
+    try:
+        plan = db.query(TrainingPlan).filter(
+            TrainingPlan.user_id == current_user.id,
+            TrainingPlan.is_active == 1
+        ).order_by(TrainingPlan.created_at.desc()).first()
+
+        if plan:
+            day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+            today_name = day_names[today.weekday()]
+            today_workout = plan.plan_data.get(today_name)
+
+            if today_workout:
+                planned_workout = f"{today_workout.get('type', 'workout').upper()}: {today_workout.get('workout', 'N/A')} ({today_workout.get('duration_minutes', 0)}min)"
+    except Exception as e:
+        print(f"Could not fetch planned workout: {e}")
+        planned_workout = None
+
     recommendation = get_daily_recommendation(
         user_name=current_user.name,
-        checkin_data=checkin_data
+        checkin_data=checkin_data,
+        planned_workout=planned_workout
     )
 
     return {"recommendation": recommendation}
@@ -165,3 +187,144 @@ def generate_training_plan_endpoint(
             status_code=500,
             detail=f"Failed to generate training plan: {str(e)}"
         )
+
+@router.post("/training-plan/regenerate-day")
+async def regenerate_day_endpoint(
+            day_request: dict,
+            current_user: User = Depends(get_current_user),
+            db: Session = Depends(get_db)
+    ):
+        """Regenerate a single day's workout"""
+        day = day_request.get("day")
+        date_str = day_request.get("date")
+
+        if not day or not date_str:
+            raise HTTPException(status_code=400, detail="Day and date are required")
+
+        # Normalize day name
+        day = day.lower()
+        valid_days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        if day not in valid_days:
+            raise HTTPException(status_code=400, detail="Invalid day name")
+
+        # Get user profile
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="User profile not found")
+
+        # Get current training plan
+        current_plan = db.query(TrainingPlan).filter(
+            TrainingPlan.user_id == current_user.id,
+            TrainingPlan.is_active == 1
+        ).order_by(TrainingPlan.created_at.desc()).first()
+
+        if not current_plan:
+            raise HTTPException(status_code=404, detail="No active training plan found")
+
+        # Prepare profile data
+        profile_data = {
+            'badminton_sessions': profile.badminton_sessions or [],
+            'primary_sport': profile.primary_sport,
+            'running_goal': profile.running_goal,
+            'target_race': profile.target_race,
+            'weekly_run_volume_target': profile.weekly_run_volume_target or 180,
+            'running_experience': profile.running_experience or {},
+            'current_injuries': profile.current_injuries or []
+        }
+
+        try:
+            # Generate new workout for this day
+            from app.services.ai_coach import generate_single_day_workout
+
+            new_workout = generate_single_day_workout(
+                user_profile=profile_data,
+                day=day,
+                date_str=date_str,
+                existing_plan=current_plan.plan_data
+            )
+
+            # Update the training plan
+            plan_data = current_plan.plan_data
+            plan_data[day] = new_workout
+            current_plan.plan_data = plan_data
+
+            # Mark as modified
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(current_plan, "plan_data")
+
+            db.commit()
+            db.refresh(current_plan)
+
+            return {
+                "workout": new_workout,
+                "message": f"{day.capitalize()} workout regenerated successfully"
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to regenerate workout: {str(e)}"
+            )
+
+@router.post("/training-plan/adjust-today")
+async def adjust_today_workout(
+            request: dict,
+            current_user: User = Depends(get_current_user),
+            db: Session = Depends(get_db)
+    ):
+        """Adjust today's workout based on recovery metrics"""
+
+        current_workout = request.get("current_workout")
+        checkin_data = request.get("checkin_data")
+        recommendation = request.get("recommendation")
+
+        if not current_workout or not checkin_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Current workout and check-in data are required"
+            )
+
+        # Get current training plan
+        current_plan = db.query(TrainingPlan).filter(
+            TrainingPlan.user_id == current_user.id,
+            TrainingPlan.is_active == 1
+        ).order_by(TrainingPlan.created_at.desc()).first()
+
+        if not current_plan:
+            raise HTTPException(status_code=404, detail="No active training plan found")
+
+        try:
+            from app.services.ai_coach import adjust_todays_workout
+
+            # Generate adjusted workout
+            adjusted_workout = adjust_todays_workout(
+                current_workout=current_workout,
+                checkin_data=checkin_data,
+                recommendation=recommendation
+            )
+
+            # Update today's workout in the training plan
+            today = date.today()
+            day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+            today_name = day_names[today.weekday()]
+
+            plan_data = current_plan.plan_data
+            plan_data[today_name] = adjusted_workout
+            current_plan.plan_data = plan_data
+
+            # CRITICAL: Mark the JSON column as modified so SQLAlchemy knows to save it
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(current_plan, "plan_data")
+
+            db.commit()
+            db.refresh(current_plan)
+
+            return {
+                "adjusted_workout": adjusted_workout,
+                "message": "Workout adjusted based on your recovery metrics"
+            }
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to adjust workout: {str(e)}"
+            )
