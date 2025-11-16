@@ -256,7 +256,7 @@ This is a personal project, but suggestions and feedback are welcome!
 
 ## 📝 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
